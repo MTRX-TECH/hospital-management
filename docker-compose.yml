@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: aarogya-mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: hospital_management
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aarogya-hospital-app
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    depends_on:
+      - mongodb
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      MONGODB_URI: mongodb://mongodb:27017/hospital_management
+      JWT_SECRET: aarogya_hospital_secure_jwt_token_key_2026
+      CLIENT_URL: '*'
+
+volumes:
+  mongo-data:
