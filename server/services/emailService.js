@@ -17,8 +17,11 @@ async function getTransporter() {
     return cachedTransporter
   }
 
-  const emailUser = process.env.EMAIL_USER || process.env.SMTP_USER
-  const emailPass = process.env.EMAIL_PASS || process.env.SMTP_PASS
+  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim()
+  const rawPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').trim()
+  const emailPass = (!process.env.SMTP_HOST && emailUser.toLowerCase().includes('gmail.com'))
+    ? rawPass.replace(/\s+/g, '')
+    : rawPass
 
   // 1. Real SMTP / Gmail configured by user
   if (emailUser && emailPass) {
@@ -74,7 +77,8 @@ async function getTransporter() {
 
 export async function sendOtpEmail(toEmail, otp) {
   const transporter = await getTransporter()
-  const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER || '"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>'
+  const userEmail = (process.env.EMAIL_USER || process.env.SMTP_USER || '').trim()
+  const fromAddress = process.env.EMAIL_FROM || (userEmail ? `"Aarogya Multi-Speciality Hospital" <${userEmail}>` : '"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>')
 
   const mailOptions = {
     from: fromAddress,
@@ -133,19 +137,53 @@ export async function sendOtpEmail(toEmail, otp) {
     `,
   }
 
-  const info = await transporter.sendMail(mailOptions)
-  console.log(`[Email Service] Real-time OTP email dispatched to ${toEmail}. Message ID: ${info.messageId}`)
+  try {
+    const info = await transporter.sendMail(mailOptions)
+    console.log(`[Email Service] Real-time OTP email dispatched to ${toEmail}. Message ID: ${info.messageId}`)
 
-  let previewUrl = null
-  if (isEthereal) {
-    previewUrl = nodemailer.getTestMessageUrl(info)
-    console.log(`[Email Service] Real-time preview available at: ${previewUrl}`)
-  }
+    let previewUrl = null
+    if (isEthereal) {
+      previewUrl = nodemailer.getTestMessageUrl(info)
+      console.log(`[Email Service] Real-time preview available at: ${previewUrl}`)
+    }
 
-  return {
-    success: true,
-    messageId: info.messageId,
-    previewUrl,
-    isRealSmtp: !isEthereal,
+    return {
+      success: true,
+      messageId: info.messageId,
+      previewUrl,
+      isRealSmtp: !isEthereal,
+    }
+  } catch (err) {
+    if (!isEthereal) {
+      console.warn(`[Email Service] Live SMTP delivery failed (${err.message}). Activating automatic sandbox fallback...`)
+      try {
+        const testAccount = await nodemailer.createTestAccount()
+        const fallbackTransporter = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+          },
+        })
+        const fallbackInfo = await fallbackTransporter.sendMail({
+          ...mailOptions,
+          from: '"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>',
+        })
+        const previewUrl = nodemailer.getTestMessageUrl(fallbackInfo)
+        console.log(`[Email Service] Real-time fallback preview available at: ${previewUrl}`)
+        return {
+          success: true,
+          messageId: fallbackInfo.messageId,
+          previewUrl,
+          isRealSmtp: false,
+          smtpWarning: `SMTP Auth Failed: ${err.message}`,
+        }
+      } catch (fallbackErr) {
+        console.error('[Email Service] Fallback also failed:', fallbackErr.message)
+      }
+    }
+    throw err
   }
 }
