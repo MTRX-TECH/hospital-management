@@ -1,7 +1,13 @@
 import nodemailer from 'nodemailer'
 import dotenv from 'dotenv'
 import path from 'path'
+import dns from 'dns'
 import { fileURLToPath } from 'url'
+
+// Force IPv4 across all DNS lookups to eliminate ENETUNREACH IPv6 errors on cloud containers (Render/Railway/AWS)
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first')
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -12,13 +18,22 @@ dotenv.config()
 let cachedTransporter = null
 let isEthereal = false
 
+// Custom DNS lookup that strictly enforces IPv4 resolution
+const ipv4Lookup = (hostname, options, callback) => {
+  if (typeof options === 'function') {
+    callback = options
+    options = {}
+  }
+  dns.lookup(hostname, { ...options, family: 4 }, callback)
+}
+
 async function getTransporter() {
   if (cachedTransporter) {
     return cachedTransporter
   }
 
-  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || 'draevor.official@gmail.com').trim()
-  const rawPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').trim()
+  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || 'mtrx.tech512@gmail.com').trim()
+  const rawPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || 'bjhpspfzyohfxxme').trim()
   const emailPass = (!process.env.SMTP_HOST && emailUser.toLowerCase().includes('gmail.com'))
     ? rawPass.replace(/\s+/g, '')
     : rawPass
@@ -31,9 +46,10 @@ async function getTransporter() {
         port: Number(process.env.SMTP_PORT || 587),
         secure: process.env.SMTP_PORT === '465',
         family: 4,
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
+        lookup: ipv4Lookup,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
         auth: {
           user: emailUser,
           pass: emailPass,
@@ -43,26 +59,28 @@ async function getTransporter() {
         },
       })
     } else {
-      // Default to Gmail service with cloud-resilient IPv4 and explicit timeouts
+      // Default to Gmail with strict IPv4 forced lookup, preventing ENETUNREACH on Render
       cachedTransporter = nodemailer.createTransport({
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
-        family: 4, // Force IPv4 to prevent cloud IPv6 connection freezes
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
+        family: 4,
+        lookup: ipv4Lookup,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
         auth: {
           user: emailUser,
           pass: emailPass,
         },
         tls: {
+          servername: 'smtp.gmail.com',
           rejectUnauthorized: false,
         },
       })
     }
     isEthereal = false
-    console.log(`[Email Service] Configured live SMTP transport via ${emailUser}`)
+    console.log(`[Email Service] Configured live SMTP transport via ${emailUser} (IPv4 forced)`)
     return cachedTransporter
   }
 
@@ -73,6 +91,7 @@ async function getTransporter() {
       host: 'smtp.ethereal.email',
       port: 587,
       secure: false,
+      lookup: ipv4Lookup,
       auth: {
         user: testAccount.user,
         pass: testAccount.pass,
@@ -93,7 +112,12 @@ async function getTransporter() {
 
 export async function sendOtpEmail(toEmail, otp) {
   const transporter = await getTransporter()
-  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || 'draevor.official@gmail.com').trim()
+  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || 'mtrx.tech512@gmail.com').trim()
+  const rawPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || 'bjhpspfzyohfxxme').trim()
+  const emailPass = (!process.env.SMTP_HOST && emailUser.toLowerCase().includes('gmail.com'))
+    ? rawPass.replace(/\s+/g, '')
+    : rawPass
+
   const fromAddress = process.env.EMAIL_FROM || `"Aarogya Multi-Speciality Hospital" <${emailUser}>`
 
   const mailOptions = {
@@ -178,12 +202,47 @@ export async function sendOtpEmail(toEmail, otp) {
     }
   } catch (err) {
     cachedTransporter = null // Reset cached transporter on failure so next request retries cleanly
-    console.warn(`[Email Service] Live SMTP delivery from ${emailUser} failed: ${err.message}`)
+    console.warn(`[Email Service] Live SMTP delivery via port 465 failed: ${err.message}`)
+
+    // 1. If port 465 timed out or blocked, retry via port 587 (STARTTLS) with forced IPv4
+    try {
+      console.log(`[Email Service] Retrying delivery via port 587 (STARTTLS) with forced IPv4...`)
+      const fallbackPort587 = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        family: 4,
+        lookup: ipv4Lookup,
+        connectionTimeout: 15000,
+        greetingTimeout: 15000,
+        socketTimeout: 20000,
+        auth: {
+          user: emailUser,
+          pass: emailPass,
+        },
+        tls: {
+          servername: 'smtp.gmail.com',
+          rejectUnauthorized: false,
+        },
+      })
+
+      const port587Info = await fallbackPort587.sendMail(mailOptions)
+      console.log(`[Email Service] Port 587 retry successfully delivered OTP to ${toEmail}. Message ID: ${port587Info.messageId}`)
+      return {
+        success: true,
+        messageId: port587Info.messageId,
+        previewUrl: null,
+        isRealSmtp: true,
+        sender: emailUser,
+      }
+    } catch (retryErr) {
+      console.warn('[Email Service] Port 587 retry also failed:', retryErr.message)
+    }
 
     const isAuthError = err.message && (err.message.includes('535') || err.message.includes('BadCredentials') || err.message.includes('Username and Password not accepted'))
 
     const authWarning = isAuthError
-      ? `Google SMTP rejected credentials for ${emailUser} (BadCredentials). To send from ${emailUser}, create a 16-character App Password at myaccount.google.com/apppasswords.`
+      ? `Google SMTP rejected credentials for ${emailUser} (BadCredentials). Please verify your 16-character App Password.`
       : `Email delivery issue: ${err.message}`
 
     if (!isEthereal) {
@@ -194,6 +253,7 @@ export async function sendOtpEmail(toEmail, otp) {
           host: 'smtp.ethereal.email',
           port: 587,
           secure: false,
+          lookup: ipv4Lookup,
           connectionTimeout: 10000,
           greetingTimeout: 10000,
           socketTimeout: 15000,
@@ -204,7 +264,7 @@ export async function sendOtpEmail(toEmail, otp) {
         })
         const fallbackInfo = await fallbackTransporter.sendMail({
           ...mailOptions,
-          from: `"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>`,
+          from: '"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>',
         })
         const previewUrl = nodemailer.getTestMessageUrl(fallbackInfo)
         console.log(`[Email Service] Real-time fallback preview available at: ${previewUrl}`)

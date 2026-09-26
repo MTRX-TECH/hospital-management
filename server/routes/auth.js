@@ -214,26 +214,6 @@ router.post('/register', async (request, response) => {
     return response.status(400).json({ message: 'Please provide a valid email address.' })
   }
 
-  // Check email OTP verification
-  let isVerified = false
-  const memEntry = otpStore.get(cleanEmail)
-  if (memEntry && memEntry.verified) {
-    isVerified = true
-  } else {
-    try {
-      const dbEntry = await EmailOtp.findOne({ email: cleanEmail })
-      if (dbEntry && dbEntry.verified) {
-        isVerified = true
-      }
-    } catch {}
-  }
-
-  if (!isVerified) {
-    return response.status(400).json({
-      message: 'Please verify your email address using the 6-digit OTP code before proceeding.',
-    })
-  }
-
   try {
     const existingUser = await User.findOne({ email: cleanEmail })
     if (existingUser) {
