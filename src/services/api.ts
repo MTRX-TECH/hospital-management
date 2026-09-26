@@ -39,13 +39,87 @@ export function getApiBaseUrl(): string {
 
 export const API_URL = getApiBaseUrl()
 
+export function setCustomApiUrl(url: string): void {
+  if (typeof window !== 'undefined') {
+    let clean = url.trim().replace(/\/+$/, '')
+    if (window.location.protocol === 'https:' && clean.startsWith('http://') && !clean.includes('localhost')) {
+      clean = clean.replace('http://', 'https://')
+    }
+    const formatted = clean.endsWith('/api') ? clean : `${clean}/api`
+    localStorage.setItem('hospital_api_url', formatted)
+  }
+}
+
+export function resetCustomApiUrl(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('hospital_api_url')
+  }
+}
+
+export async function checkApiHealth(customUrl?: string): Promise<{
+  ok: boolean
+  data?: any
+  error?: string
+  latencyMs?: number
+}> {
+  let base = (customUrl ? customUrl.trim().replace(/\/+$/, '') : getApiBaseUrl()).replace(/\/+$/, '')
+  // Normalize base: if user typed e.g. https://xyz.onrender.com, target /api/health
+  const testUrl = base.endsWith('/api') ? `${base}/health` : `${base}/api/health`
+
+  const start = Date.now()
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+    const res = await fetch(testUrl, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+
+    const latencyMs = Date.now() - start
+    const contentType = res.headers.get('content-type') || ''
+    if (contentType.includes('text/html')) {
+      return {
+        ok: false,
+        latencyMs,
+        error: 'Returned HTML page (likely SPA catch-all rewrite) instead of API JSON response.',
+      }
+    }
+
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return {
+        ok: false,
+        latencyMs,
+        error: data.message || `Server responded with HTTP ${res.status}`,
+      }
+    }
+
+    return {
+      ok: true,
+      latencyMs,
+      data,
+    }
+  } catch (err: any) {
+    const latencyMs = Date.now() - start
+    return {
+      ok: false,
+      latencyMs,
+      error: err.name === 'AbortError' ? 'Connection timed out (8s)' : (err.message || 'Network connection failed'),
+    }
+  }
+}
+
 if (typeof window !== 'undefined') {
   ;(window as any).setHospitalApiUrl = (url: string) => {
-    localStorage.setItem('hospital_api_url', url)
+    setCustomApiUrl(url)
     console.log('[Hospital API] Updated backend URL to:', url)
     window.location.reload()
   }
 }
+
 
 export interface User {
   id: string
