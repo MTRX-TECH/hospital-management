@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { HospitalCrossIcon, CheckCircleIcon, CheckIcon, CrossIcon, MailIcon, ExternalLinkIcon } from '../../components/Icons'
+import { ApiServerConfig } from '../../components/ApiServerConfig'
 import { api } from '../../services/api'
 
 interface RegisterProps {
@@ -547,6 +548,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
             Sign In Here
           </button>
         </div>
+
+        <ApiServerConfig />
       </div>
     </div>
   )

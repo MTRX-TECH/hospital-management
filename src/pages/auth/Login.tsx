@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { HospitalCrossIcon } from '../../components/Icons'
+import { ApiServerConfig } from '../../components/ApiServerConfig'
 
 interface LoginProps {
   onSwitchToRegister: () => void
@@ -153,6 +154,8 @@ export const Login: React.FC<LoginProps> = ({ onSwitchToRegister }) => {
           </div>
           <small className="demo-note">Default password: password123</small>
         </div>
+
+        <ApiServerConfig />
       </div>
     </div>
   )

@@ -427,6 +427,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        data.message || `Endpoint not found (404) at ${targetUrl}. Please verify your backend server URL.`
+      )
+    }
     throw new Error(data.message || `Request failed with status ${response.status}`)
   }
 

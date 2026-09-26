@@ -43,11 +43,16 @@ app.use(
     maxAge: 86400,
   })
 )
-app.options('*', cors())
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204)
+  }
+  next()
+})
 app.use(express.json({ limit: '15mb' }))
 app.use(express.urlencoded({ extended: true, limit: '15mb' }))
 
-app.get('/api/health', (_request, response) => {
+app.get(['/api/health', '/health'], (_request, response) => {
   response.json({
     status: 'ok',
     service: 'Hospital Appointment & Patient Management API',
@@ -88,6 +93,7 @@ for (const p of otpVerifyPaths) {
 // Application routes
 app.use('/api/auth', authRoutes)
 app.use('/auth', authRoutes)
+app.use('/api', authRoutes)
 app.use('/api/departments', departmentRoutes)
 app.use('/api/doctors', doctorRoutes)
 app.use('/api/schedules', scheduleRoutes)
@@ -119,9 +125,10 @@ app.use((_request, response) => {
 
 // Centralized error handler
 app.use((error, _request, response, _next) => {
-  console.error('API Error:', error)
-  response.status(500).json({
-    message: 'An internal server error occurred. Please try again later.',
+  console.error('API Error:', error.message || error)
+  const statusCode = error.status || error.statusCode || 500
+  response.status(statusCode).json({
+    message: error.expose ? error.message : 'An internal server error occurred. Please try again later.',
   })
 })
 
