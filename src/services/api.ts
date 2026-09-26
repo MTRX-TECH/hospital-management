@@ -1,5 +1,51 @@
-const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').trim().replace(/\/+$/, '')
-const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`
+export function getApiBaseUrl(): string {
+  // 1. Runtime override via localStorage (allows instant configuration without rebuilding)
+  if (typeof window !== 'undefined') {
+    const customUrl = localStorage.getItem('hospital_api_url')
+    if (customUrl && customUrl.trim()) {
+      let clean = customUrl.trim().replace(/\/+$/, '')
+      if (window.location.protocol === 'https:' && clean.startsWith('http://') && !clean.includes('localhost')) {
+        clean = clean.replace('http://', 'https://')
+      }
+      return clean.endsWith('/api') ? clean : `${clean}/api`
+    }
+  }
+
+  // 2. Build-time environment variable VITE_API_URL
+  const envUrl = (import.meta.env.VITE_API_URL || '').trim()
+  if (envUrl) {
+    let clean = envUrl.replace(/\/+$/, '')
+    // Auto-upgrade insecure http to https if current window is https and target is not localhost
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && clean.startsWith('http://') && !clean.includes('localhost')) {
+      clean = clean.replace('http://', 'https://')
+    }
+    return clean.endsWith('/api') ? clean : `${clean}/api`
+  }
+
+  // 3. Browser environment fallback
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location
+    // Local development server on machine
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:4000/api'
+    }
+    // Remote production hosting (Render unified deployment, Docker, or Vercel proxy)
+    // Uses current origin with /api, ensuring zero mixed-content and correct domain targeting
+    return `${origin}/api`
+  }
+
+  return 'http://localhost:4000/api'
+}
+
+export const API_URL = getApiBaseUrl()
+
+if (typeof window !== 'undefined') {
+  ;(window as any).setHospitalApiUrl = (url: string) => {
+    localStorage.setItem('hospital_api_url', url)
+    console.log('[Hospital API] Updated backend URL to:', url)
+    window.location.reload()
+  }
+}
 
 export interface User {
   id: string
@@ -274,15 +320,40 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers as Record<string, string>),
   }
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-  })
+  const baseUrl = getApiBaseUrl()
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  const targetUrl = `${baseUrl}${cleanPath}`
+
+  let response: Response
+  try {
+    response = await fetch(targetUrl, {
+      ...options,
+      headers,
+    })
+  } catch (err: any) {
+    console.error(`[Hospital API Network Error] ${options.method || 'GET'} ${targetUrl}:`, err)
+    if (typeof window !== 'undefined' && targetUrl.includes('localhost:4000') && window.location.hostname !== 'localhost') {
+      throw new Error(
+        `Backend API is currently configured to localhost:4000. In production, please set VITE_API_URL or run setHospitalApiUrl('https://your-backend.onrender.com') in the browser console.`
+      )
+    }
+    throw new Error(
+      `Unable to connect to hospital server (${err.message || 'Network error'}). Please verify your backend server status or network connection.`
+    )
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('text/html')) {
+    console.error(`[Hospital API Error] Received HTML response from ${targetUrl} (Status ${response.status})`)
+    throw new Error(
+      `Hospital backend returned an invalid response (HTML instead of API JSON). If hosted on a cloud provider, ensure backend URL is configured correctly.`
+    )
+  }
 
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(data.message || 'An error occurred while processing the request.')
+    throw new Error(data.message || `Request failed with status ${response.status}`)
   }
 
   return data as T
