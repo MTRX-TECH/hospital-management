@@ -194,7 +194,7 @@ async function runComprehensiveVerification() {
     assert(docsRes.status === 200 && docsRes.data.length >= 2, `3.1 Loaded ${docsRes.data.length} hospital doctors`)
 
     const cardioDoc = docsRes.data.find((d) => d.department === 'Cardiology') || docsRes.data[0]
-    const orthoDoc = docsRes.data.find((d) => d.department === 'Orthopaedics') || docsRes.data[1]
+    const orthoDoc = docsRes.data.find((d) => String(d.id) !== String(cardioDoc.id)) || docsRes.data[1]
 
     // Dynamically query next 14 days to find a date & slot where both Cardio & Ortho have available clinic schedule
     let testDate = ''

@@ -399,13 +399,12 @@ A multi-stage production [`Dockerfile`](file:///c:/Users/maran/OneDrive/Desktop/
 
 ## Demo Credentials & Hackathon Review Guide
 
-| Role | Specialist / Function | Email | Password |
+| Role | Specialist / Demographic | Email | Password |
 |---|---|---|---|
-| **Patient** | Rohan Sharma | `patient@hospital.com` | `password123` |
-| **Doctor** | Dr. Rajesh Sharma (Cardiology) | `dr.rajesh@hospital.com` | `password123` |
-| **Doctor** | Dr. Meenakshi Sundaram (General Medicine) | `dr.meenakshi@hospital.com` | `password123` |
-| **Doctor** | Dr. Priya Nair (Neurology) | `dr.priya@hospital.com` | `password123` |
-| **Doctor** | Dr. Arvind Swaminathan (Orthopaedics) | `dr.arvind@hospital.com` | `password123` |
+| **Patient 1** | Rohan Sharma (Token R-001 in queue) | `patient@hospital.com` | `password123` |
+| **Patient 2** | Ananya Iyer (Confirmed appointment) | `ananya.iyer@example.com` | `password123` |
+| **Doctor 1** | Dr. Rajesh Sharma (Cardiology) | `dr.rajesh@hospital.com` | `password123` |
+| **Doctor 2** | Dr. Meenakshi Sundaram (General Medicine) | `dr.meenakshi@hospital.com` | `password123` |
 | **Administrator** | Dr. Rameshwar Rao (Medical Superintendent) | `admin@hospital.com` | `password123` |
 
 *(Tip: The sign-in screen includes quick 1-click login buttons for Patient, Doctor, and Admin for instant access during evaluation.)*

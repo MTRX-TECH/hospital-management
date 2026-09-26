@@ -50,18 +50,18 @@ async function seedDatabase() {
 
     const passwordHash = await bcrypt.hash('password123', 10)
 
-    // 1. Departments (with Indian medical / clinical context)
+    // 1. Departments
     const departments = await Department.insertMany([
       { name: 'Cardiology', description: 'Comprehensive heart care, ECG, 2D Echo, TMT, coronary angiography, and preventive cardiology.' },
+      { name: 'General Medicine', description: 'Primary outpatient department (OPD), infectious diseases, fever clinic, and diabetes management.' },
       { name: 'Neurology', description: 'Advanced care for brain, spine, migraine, neuropathy, stroke rehab, and epilepsy disorders.' },
       { name: 'Orthopaedics', description: 'Bone, joint preservation, arthroscopy, spine care, fracture trauma, and arthritis management.' },
-      { name: 'General Medicine', description: 'Primary outpatient department (OPD), infectious diseases, fever clinic, and diabetes management.' },
       { name: 'Paediatrics', description: 'Comprehensive newborn care, immunisation / vaccination, and child growth and wellness.' },
       { name: 'Dermatology', description: 'Clinical skin disorders, allergy testing, cosmetology, hair, and nail health therapies.' },
     ])
     console.log(`Created ${departments.length} departments.`)
 
-    // 2. Users: Admin (Medical Superintendent)
+    // 2. Exactly 1 Admin User (Medical Superintendent)
     const adminUser = await User.create({
       name: 'Dr. Rameshwar Rao (Medical Superintendent)',
       email: 'admin@hospital.com',
@@ -69,8 +69,9 @@ async function seedDatabase() {
       role: 'admin',
       phone: '+91 98450 11000',
     })
+    console.log('Created 1 Admin account: admin@hospital.com')
 
-    // 3. Users: Doctors (Renowned Indian Specialists)
+    // 3. Exactly 2 Doctor Users
     const doctorUsersData = [
       {
         name: 'Dr. Rajesh Sharma',
@@ -83,67 +84,33 @@ async function seedDatabase() {
         qualification: 'MBBS, MD, DM (Cardiology) - AIIMS New Delhi',
         bio: 'Specialist in preventive cardiology, hypertension control, non-invasive cardiac evaluation, and coronary health.',
         schedules: [
-          { dayOfWeek: 0, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-          { dayOfWeek: 1, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-          { dayOfWeek: 2, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-          { dayOfWeek: 3, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-          { dayOfWeek: 4, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-          { dayOfWeek: 5, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-          { dayOfWeek: 6, startTime: '09:00', endTime: '13:00', slotDuration: 30 },
-        ],
-      },
-      {
-        name: 'Dr. Priya Nair',
-        email: 'dr.priya@hospital.com',
-        phone: '+91 98222 33445',
-        department: departments[1]._id, // Neurology
-        specialization: 'Consultant Neurologist',
-        experienceYears: 10,
-        consultationFee: 750, // ₹750
-        qualification: 'MBBS, MD, DM (Neurology) - NIMHANS Bengaluru',
-        bio: 'Expertise in chronic migraine therapy, peripheral neuropathy, epilepsy management, and stroke rehabilitation.',
-        schedules: [
-          { dayOfWeek: 1, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 2, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 3, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 4, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 5, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-        ],
-      },
-      {
-        name: 'Dr. Arvind Swaminathan',
-        email: 'dr.arvind@hospital.com',
-        phone: '+91 98333 44556',
-        department: departments[2]._id, // Orthopaedics
-        specialization: 'Senior Orthopaedic Surgeon',
-        experienceYears: 16,
-        consultationFee: 900, // ₹900
-        qualification: 'MBBS, MS (Orthopaedics), MCh (Ortho)',
-        bio: 'Special interest in joint replacement (hip & knee), arthroscopic ligament repair, sports injuries, and spine therapy.',
-        schedules: [
-          { dayOfWeek: 1, startTime: '10:00', endTime: '14:00', slotDuration: 30 },
-          { dayOfWeek: 2, startTime: '10:00', endTime: '14:00', slotDuration: 30 },
-          { dayOfWeek: 3, startTime: '10:00', endTime: '14:00', slotDuration: 30 },
-          { dayOfWeek: 4, startTime: '10:00', endTime: '14:00', slotDuration: 30 },
-          { dayOfWeek: 5, startTime: '10:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 0, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 1, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 2, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 3, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 4, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 5, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 6, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
         ],
       },
       {
         name: 'Dr. Meenakshi Sundaram',
         email: 'dr.meenakshi@hospital.com',
         phone: '+91 98444 55667',
-        department: departments[3]._id, // General Medicine
-        specialization: 'Consultant Physician (General OPD)',
-        experienceYears: 11,
-        consultationFee: 500, // ₹500
+        department: departments[1]._id, // General Medicine
+        specialization: 'Senior Consultant Physician (General OPD)',
+        experienceYears: 12,
+        consultationFee: 600, // ₹600
         qualification: 'MBBS, MD (Internal Medicine)',
         bio: 'Holistic physician catering to general outpatient care, type-2 diabetes management, seasonal fevers, and preventive checkups.',
         schedules: [
-          { dayOfWeek: 1, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 2, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 3, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 4, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
-          { dayOfWeek: 5, startTime: '14:00', endTime: '18:00', slotDuration: 30 },
+          { dayOfWeek: 0, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 1, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 2, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 3, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 4, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 5, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
+          { dayOfWeek: 6, startTime: '09:00', endTime: '14:00', slotDuration: 30 },
         ],
       },
     ]
@@ -179,9 +146,9 @@ async function seedDatabase() {
         })
       }
     }
-    console.log(`Created ${doctorDocs.length} Indian doctors and their OPD schedules.`)
+    console.log(`Created exactly ${doctorDocs.length} Doctors and their OPD schedules.`)
 
-    // 4. Users: Patients (Indian Demographics)
+    // 4. Exactly 2 Patient Users
     const patientUsersData = [
       {
         name: 'Rohan Sharma',
@@ -202,16 +169,6 @@ async function seedDatabase() {
         bloodGroup: 'O+',
         address: 'Plot 42, 4th Main Road, Anna Nagar, Chennai, Tamil Nadu - 600040',
         emergencyContact: 'R. Iyer - Father (+91 98450 12349)',
-      },
-      {
-        name: 'Vikram Malhotra',
-        email: 'vikram.m@example.com',
-        phone: '+91 98100 55443',
-        dateOfBirth: '1988-03-12',
-        gender: 'Male',
-        bloodGroup: 'A+',
-        address: 'Flat 12C, Cyber Heights, Sector 62, Noida, Uttar Pradesh - 201301',
-        emergencyContact: 'Pooja Malhotra - Wife (+91 98100 55444)',
       },
     ]
 
@@ -234,11 +191,11 @@ async function seedDatabase() {
       })
       patientDocs.push({ patient, user })
     }
-    console.log(`Created ${patientDocs.length} patients and demographic profiles.`)
+    console.log(`Created exactly ${patientDocs.length} Patients and demographic profiles.`)
 
     const todayStr = getTodayString()
 
-    // 5. Sample Appointment 1: Past Completed Appointment with Digital Prescription (Tablets + Times Taken)
+    // 5. Sample Appointment 1: Past Completed Consultation for Rohan Sharma with Dr. Rajesh Sharma
     const pastPrescription = {
       medicines: [
         {
@@ -304,7 +261,7 @@ async function seedDatabase() {
       prescription: pastPrescription,
     })
 
-    // Payment Ledger record for Past Appointment
+    // Payment Ledger for Past Appointment
     await Payment.create({
       appointment: pastAppointment._id,
       patient: patientDocs[0].patient._id,
@@ -332,7 +289,7 @@ async function seedDatabase() {
       paymentStatus: 'PAID',
     })
 
-    // 6. Sample Appointment 2: TODAY'S ACTIVE WAITING QUEUE (Ready for Live Demo!)
+    // 6. Sample Appointment 2: TODAY'S ACTIVE WAITING QUEUE for Rohan Sharma
     const todayAppointment = await Appointment.create({
       patient: patientDocs[0].patient._id,
       doctor: doctorDocs[0].doctor._id,
@@ -377,29 +334,29 @@ async function seedDatabase() {
       paidAt: new Date(),
     })
 
-    // 7. Sample Appointment 3: Confirmed Appointment for Ananya Iyer with Dr. Priya Nair
+    // 7. Sample Appointment 3: Confirmed Appointment for Ananya Iyer with Dr. Meenakshi Sundaram
     const ananyaAppointment = await Appointment.create({
       patient: patientDocs[1].patient._id,
       doctor: doctorDocs[1].doctor._id,
       appointmentDate: todayStr,
-      appointmentTime: '14:30',
-      reason: 'Frequent throbbing migraine attacks triggered by prolonged screen time',
+      appointmentTime: '11:30',
+      reason: 'Seasonal viral fever symptoms, body ache, and persistent cough',
       status: 'CONFIRMED',
-      totalFee: 750,
+      totalFee: 600,
       advancePaid: 200,
-      remainingBalance: 550,
+      remainingBalance: 400,
       paymentStatus: 'PARTIALLY_PAID',
       paymentMethod: 'CARD',
       transactionReference: `TXN-AAROGYA-${Date.now()}-102`,
       checkInStatus: 'NOT_CHECKED_IN',
       preConsultation: {
-        reason: 'Frequent throbbing migraine attacks triggered by prolonged screen time',
-        symptoms: ['Headache / Migraine', 'Dizziness / Weakness'],
-        symptomDuration: '2-4 Weeks',
+        reason: 'Seasonal viral fever symptoms, body ache, and persistent cough',
+        symptoms: ['Fever / Chills', 'Cough / Cold / Sore Throat'],
+        symptomDuration: '3-5 Days',
         existingConditions: ['None / Healthy'],
         currentMedications: 'None',
         knownAllergies: 'None',
-        additionalNotes: 'Pain accompanied by photophobia and nausea',
+        additionalNotes: 'Patient requesting temperature check and general OPD review',
         submittedAt: new Date(),
       },
     })
@@ -410,7 +367,7 @@ async function seedDatabase() {
       patient: patientDocs[1].patient._id,
       doctor: doctorDocs[1].doctor._id,
       amount: 200,
-      totalFee: 750,
+      totalFee: 600,
       type: 'ADVANCE_BOOKING',
       paymentMethod: 'CARD',
       transactionReference: ananyaAppointment.transactionReference,
@@ -447,7 +404,7 @@ async function seedDatabase() {
     await Notification.create({
       user: adminUser._id,
       title: 'Hospital System Initialized',
-      message: 'Aarogya Multi-Speciality Hospital clinical database initialized with live OPD queues and financial ledger.',
+      message: 'Aarogya Multi-Speciality Hospital clinical database initialized with 2 Patients, 2 Doctors, and 1 Admin.',
       type: 'system',
       isRead: true,
     })
@@ -458,13 +415,11 @@ async function seedDatabase() {
     console.log('   AAROGYA HOSPITAL SYSTEM - SEED DATA READY          ')
     console.log('======================================================')
     console.log('All Passwords: password123')
-    console.log('Admin:   admin@hospital.com       (Dr. Rameshwar Rao - Medical Superintendent)')
-    console.log('Doctor:  dr.rajesh@hospital.com   (Dr. Rajesh Sharma - Cardiology)')
-    console.log('Doctor:  dr.priya@hospital.com    (Dr. Priya Nair - Neurology)')
-    console.log('Doctor:  dr.arvind@hospital.com   (Dr. Arvind Swaminathan - Orthopaedics)')
-    console.log('Doctor:  dr.meenakshi@hospital.com(Dr. Meenakshi Sundaram - General Medicine)')
-    console.log('Patient: patient@hospital.com     (Rohan Sharma - Active Token R-001 waiting today!)')
-    console.log('Patient: ananya.iyer@example.com  (Ananya Iyer - Confirmed appointment today)')
+    console.log('Admin (1):   admin@hospital.com       (Dr. Rameshwar Rao - Medical Superintendent)')
+    console.log('Doctor (1):  dr.rajesh@hospital.com   (Dr. Rajesh Sharma - Senior Cardiologist)')
+    console.log('Doctor (2):  dr.meenakshi@hospital.com(Dr. Meenakshi Sundaram - General Medicine)')
+    console.log('Patient (1): patient@hospital.com     (Rohan Sharma - Active Token R-001 waiting today!)')
+    console.log('Patient (2): ananya.iyer@example.com  (Ananya Iyer - Confirmed appointment today)')
     console.log('======================================================\n')
 
     process.exit(0)
