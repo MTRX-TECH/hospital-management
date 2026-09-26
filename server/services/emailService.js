@@ -12,28 +12,18 @@ dotenv.config()
 let cachedTransporter = null
 let isEthereal = false
 
-const VERIFIED_FALLBACK_USER = 'mtrx.tech512@gmail.com'
-const VERIFIED_FALLBACK_PASS = 'bjhpspfzyohfxxme'
-
 async function getTransporter() {
   if (cachedTransporter) {
     return cachedTransporter
   }
 
-  let emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || VERIFIED_FALLBACK_USER).trim()
-  let rawPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || VERIFIED_FALLBACK_PASS).trim()
-  let emailPass = (!process.env.SMTP_HOST && emailUser.toLowerCase().includes('gmail.com'))
+  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || 'draevor.official@gmail.com').trim()
+  const rawPass = (process.env.EMAIL_PASS || process.env.SMTP_PASS || '').trim()
+  const emailPass = (!process.env.SMTP_HOST && emailUser.toLowerCase().includes('gmail.com'))
     ? rawPass.replace(/\s+/g, '')
     : rawPass
 
-  // Auto-detect App Password pairing:
-  // If the App Password is "bjhp spfz yohf xxme", the generated Google Account is mtrx.tech512@gmail.com
-  if (emailPass.replace(/\s+/g, '') === VERIFIED_FALLBACK_PASS && emailUser.toLowerCase() === 'draevor.official@gmail.com') {
-    console.log('[Email Service] App Password matches verified hospital account. Using sender mtrx.tech512@gmail.com')
-    emailUser = VERIFIED_FALLBACK_USER
-  }
-
-  // 1. Real SMTP / Gmail configured by user or fallback
+  // Real SMTP / Gmail configured by user
   if (emailUser && emailPass) {
     if (process.env.SMTP_HOST) {
       cachedTransporter = nodemailer.createTransport({
@@ -58,7 +48,7 @@ async function getTransporter() {
         host: 'smtp.gmail.com',
         port: 465,
         secure: true,
-        family: 4, // Force IPv4 to prevent cloud IPv6 connection freezes on Render/AWS/Railway
+        family: 4, // Force IPv4 to prevent cloud IPv6 connection freezes
         connectionTimeout: 10000,
         greetingTimeout: 10000,
         socketTimeout: 15000,
@@ -76,7 +66,7 @@ async function getTransporter() {
     return cachedTransporter
   }
 
-  // 2. Zero-config real-time live preview transporter (Ethereal Email)
+  // Zero-config live preview transporter (Ethereal Email)
   try {
     const testAccount = await nodemailer.createTestAccount()
     cachedTransporter = nodemailer.createTransport({
@@ -103,11 +93,8 @@ async function getTransporter() {
 
 export async function sendOtpEmail(toEmail, otp) {
   const transporter = await getTransporter()
-  let userEmail = (process.env.EMAIL_USER || process.env.SMTP_USER || VERIFIED_FALLBACK_USER).trim()
-  if (userEmail.toLowerCase() === 'draevor.official@gmail.com') {
-    userEmail = VERIFIED_FALLBACK_USER
-  }
-  const fromAddress = process.env.EMAIL_FROM || `"Aarogya Multi-Speciality Hospital" <${userEmail}>`
+  const emailUser = (process.env.EMAIL_USER || process.env.SMTP_USER || 'draevor.official@gmail.com').trim()
+  const fromAddress = process.env.EMAIL_FROM || `"Aarogya Multi-Speciality Hospital" <${emailUser}>`
 
   const mailOptions = {
     from: fromAddress,
@@ -174,7 +161,7 @@ export async function sendOtpEmail(toEmail, otp) {
 
   try {
     const info = await transporter.sendMail(mailOptions)
-    console.log(`[Email Service] Real-time OTP email dispatched via ${userEmail} to ${toEmail}. Message ID: ${info.messageId}`)
+    console.log(`[Email Service] Real-time OTP email dispatched via ${emailUser} to ${toEmail}. Message ID: ${info.messageId}`)
 
     let previewUrl = null
     if (isEthereal) {
@@ -187,45 +174,17 @@ export async function sendOtpEmail(toEmail, otp) {
       messageId: info.messageId,
       previewUrl,
       isRealSmtp: !isEthereal,
+      sender: emailUser,
     }
   } catch (err) {
     cachedTransporter = null // Reset cached transporter on failure so next request retries cleanly
-    console.warn(`[Email Service] Live SMTP delivery attempt failed (${err.message}).`)
+    console.warn(`[Email Service] Live SMTP delivery from ${emailUser} failed: ${err.message}`)
 
-    // If Google SMTP rejected credentials with 535 BadCredentials, retry immediately with verified hospital sender
-    if (err.message && (err.message.includes('535') || err.message.includes('BadCredentials') || err.message.includes('Username and Password not accepted'))) {
-      console.log(`[Email Service] Retrying with verified hospital mail sender (${VERIFIED_FALLBACK_USER})...`)
-      try {
-        const verifiedTransporter = nodemailer.createTransport({
-          host: 'smtp.gmail.com',
-          port: 465,
-          secure: true,
-          family: 4,
-          connectionTimeout: 10000,
-          greetingTimeout: 10000,
-          socketTimeout: 15000,
-          auth: {
-            user: VERIFIED_FALLBACK_USER,
-            pass: VERIFIED_FALLBACK_PASS,
-          },
-          tls: { rejectUnauthorized: false },
-        })
-        const retryInfo = await verifiedTransporter.sendMail({
-          ...mailOptions,
-          from: `"Aarogya Multi-Speciality Hospital" <${VERIFIED_FALLBACK_USER}>`,
-          replyTo: `"Aarogya Multi-Speciality Hospital" <${VERIFIED_FALLBACK_USER}>`,
-        })
-        console.log(`[Email Service] Verified sender successfully delivered real OTP email to ${toEmail}. Message ID: ${retryInfo.messageId}`)
-        return {
-          success: true,
-          messageId: retryInfo.messageId,
-          previewUrl: null,
-          isRealSmtp: true,
-        }
-      } catch (retryErr) {
-        console.error('[Email Service] Verified sender retry failed:', retryErr.message)
-      }
-    }
+    const isAuthError = err.message && (err.message.includes('535') || err.message.includes('BadCredentials') || err.message.includes('Username and Password not accepted'))
+
+    const authWarning = isAuthError
+      ? `Google SMTP rejected credentials for ${emailUser} (BadCredentials). To send from ${emailUser}, create a 16-character App Password at myaccount.google.com/apppasswords.`
+      : `Email delivery issue: ${err.message}`
 
     if (!isEthereal) {
       console.warn('[Email Service] Activating automatic sandbox fallback...')
@@ -245,7 +204,7 @@ export async function sendOtpEmail(toEmail, otp) {
         })
         const fallbackInfo = await fallbackTransporter.sendMail({
           ...mailOptions,
-          from: '"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>',
+          from: `"Aarogya Multi-Speciality Hospital" <no-reply@aarogyahospital.in>`,
         })
         const previewUrl = nodemailer.getTestMessageUrl(fallbackInfo)
         console.log(`[Email Service] Real-time fallback preview available at: ${previewUrl}`)
@@ -254,19 +213,22 @@ export async function sendOtpEmail(toEmail, otp) {
           messageId: fallbackInfo.messageId,
           previewUrl,
           isRealSmtp: false,
-          smtpWarning: `SMTP Auth Failed: ${err.message}`,
+          sender: emailUser,
+          smtpWarning: authWarning,
         }
       } catch (fallbackErr) {
         console.error('[Email Service] Sandbox fallback also failed:', fallbackErr.message)
       }
     }
-    // Zero-crash graceful fallback: Always return success with code registered so registration is not blocked
+
     return {
       success: true,
       messageId: null,
       previewUrl: null,
       isRealSmtp: false,
-      deliveryNotice: 'Code generated. If email delivery is delayed by provider, use resend OTP.',
+      sender: emailUser,
+      smtpWarning: authWarning,
+      deliveryNotice: 'Code generated. Please verify your sender App Password in Google Account settings.',
     }
   }
 }

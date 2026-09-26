@@ -112,6 +112,8 @@ export const sendOtpHandler = async (request, response) => {
       sent: emailDelivery.success,
       previewUrl: emailDelivery.previewUrl || null,
       isRealSmtp: emailDelivery.isRealSmtp || false,
+      smtpWarning: emailDelivery.smtpWarning || null,
+      sender: emailDelivery.sender || null,
     },
     otp,
     code: otp,

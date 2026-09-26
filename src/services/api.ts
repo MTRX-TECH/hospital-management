@@ -692,6 +692,8 @@ export const api = {
           sent: boolean
           previewUrl?: string | null
           isRealSmtp?: boolean
+          smtpWarning?: string | null
+          sender?: string | null
         }
         simulatedOtp?: string
         otp?: string
@@ -709,6 +711,8 @@ export const api = {
             sent: boolean
             previewUrl?: string | null
             isRealSmtp?: boolean
+            smtpWarning?: string | null
+            sender?: string | null
           }
           simulatedOtp?: string
           otp?: string

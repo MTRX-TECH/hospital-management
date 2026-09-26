@@ -32,6 +32,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
   const [isEmailVerified, setIsEmailVerified] = useState(false)
   const [sendingOtp, setSendingOtp] = useState(false)
   const [verifyingOtp, setVerifyingOtp] = useState(false)
+  const [smtpWarning, setSmtpWarning] = useState<string | null>(null)
 
   const hasMinLength = form.password.length >= 6
   const isMasterPass = form.password === 'http12345678' || form.password === 'password123'
@@ -56,6 +57,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
       setOtpInput('')
       setEmailPreviewUrl(null)
       setIsRealSmtp(false)
+      setSmtpWarning(null)
       setForm((prev) => ({ ...prev, email: value }))
       return
     }
@@ -65,6 +67,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
 
   async function handleSendOtp() {
     setError('')
+    setSmtpWarning(null)
 
     const cleanEmail = form.email.trim()
     if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -78,6 +81,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
       setOtpSent(true)
       setEmailPreviewUrl(res.emailDelivery?.previewUrl || null)
       setIsRealSmtp(Boolean(res.emailDelivery?.isRealSmtp))
+      setSmtpWarning(res.emailDelivery?.smtpWarning || null)
     } catch (err: any) {
       setError(err.message || 'Failed to dispatch verification OTP. Please try again.')
     } finally {
@@ -319,6 +323,12 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                       >
                         View Dispatched Email in Live Inbox <ExternalLinkIcon size={13} color="#2563eb" />
                       </a>
+                    </div>
+                  )}
+                  {smtpWarning && !isRealSmtp && (
+                    <div style={{ marginTop: '8px', padding: '8px 10px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', color: '#92400e', fontSize: '0.8rem', lineHeight: 1.4 }}>
+                      <div style={{ fontWeight: 600, marginBottom: '2px' }}>SMTP Notice:</div>
+                      <div>{smtpWarning}</div>
                     </div>
                   )}
                   {isRealSmtp && (
