@@ -296,7 +296,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                   </div>
                   <div>
                     A 6-digit one-time password has been sent to{' '}
-                    <strong>{form.email}</strong>. Please check your inbox and enter the code below to complete registration. Code expires in 10 minutes.
+                    <strong>{form.email}</strong>. Please check your inbox (or Spam / Junk folder if not in Primary) and enter the code below to complete registration. Code expires in 10 minutes.
                   </div>
                   {emailPreviewUrl && (
                     <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #bfdbfe' }}>
