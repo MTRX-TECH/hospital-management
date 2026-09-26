@@ -5,6 +5,7 @@ import 'dotenv/config'
 import { User } from '../models/User.js'
 import { Patient } from '../models/Patient.js'
 import { Doctor } from '../models/Doctor.js'
+import { EmailOtp } from '../models/EmailOtp.js'
 import { authenticateToken } from '../middleware/auth.js'
 
 const router = Router()
@@ -55,7 +56,7 @@ function validateStrongPassword(password) {
   return null
 }
 
-router.post('/send-otp', async (request, response) => {
+export const sendOtpHandler = async (request, response) => {
   const { email } = request.body
   if (!email) {
     return response.status(400).json({ message: 'Email address is required to receive verification code.' })
@@ -73,51 +74,97 @@ router.post('/send-otp', async (request, response) => {
   }
 
   const otp = Math.floor(100000 + Math.random() * 900000).toString()
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000)
+
   otpStore.set(cleanEmail, {
     otp,
-    expiresAt: Date.now() + 10 * 60 * 1000,
+    expiresAt: expiresAt.getTime(),
     verified: false,
   })
+
+  try {
+    await EmailOtp.findOneAndUpdate(
+      { email: cleanEmail },
+      { otp, verified: false, expiresAt },
+      { upsert: true, new: true }
+    )
+  } catch (err) {
+    console.warn('MongoDB OTP persistence fallback:', err.message)
+  }
 
   console.log(`[Email OTP Service] Generated verification code for ${cleanEmail}: ${otp}`)
 
   response.json({
-    message: `Verification OTP sent to ${cleanEmail}`,
+    message: `Verification code sent to ${cleanEmail}`,
+    otp,
+    code: otp,
     simulatedOtp: otp,
     success: true,
   })
-})
+}
 
-// POST /api/auth/verify-otp - Verify the 6-digit OTP for email
-router.post('/verify-otp', async (request, response) => {
+export const verifyOtpHandler = async (request, response) => {
   const { email, otp } = request.body
 
   if (!email || !otp) {
-    return response.status(400).json({ message: 'Both email and OTP code are required.' })
+    return response.status(400).json({ message: 'Both email address and 6-digit OTP code are required.' })
   }
 
   const cleanEmail = email.toLowerCase().trim()
-  const entry = otpStore.get(cleanEmail)
+  const cleanOtp = String(otp).trim()
+
+  let entry = otpStore.get(cleanEmail)
 
   if (!entry) {
-    return response.status(400).json({ message: 'No OTP requested for this email address. Please click "Send OTP".' })
+    try {
+      const dbEntry = await EmailOtp.findOne({ email: cleanEmail })
+      if (dbEntry) {
+        entry = {
+          otp: dbEntry.otp,
+          expiresAt: new Date(dbEntry.expiresAt).getTime(),
+          verified: dbEntry.verified,
+        }
+      }
+    } catch (err) {
+      console.warn('MongoDB OTP lookup error:', err.message)
+    }
+  }
+
+  if (!entry) {
+    return response.status(400).json({
+      message: 'No active OTP verification code found for this email address. Please click "Send OTP".',
+    })
   }
 
   if (Date.now() > entry.expiresAt) {
     otpStore.delete(cleanEmail)
+    try {
+      await EmailOtp.deleteOne({ email: cleanEmail })
+    } catch {}
     return response.status(400).json({ message: 'Verification OTP has expired. Please request a new code.' })
   }
 
-  if (entry.otp !== String(otp).trim()) {
-    return response.status(400).json({ message: 'Invalid OTP code. Please enter the correct 6-digit code.' })
+  if (entry.otp !== cleanOtp) {
+    return response.status(400).json({ message: 'Invalid OTP code entered. Please enter the correct 6-digit code.' })
   }
 
   entry.verified = true
+  otpStore.set(cleanEmail, entry)
+
+  try {
+    await EmailOtp.updateOne({ email: cleanEmail }, { verified: true })
+  } catch (err) {
+    console.warn('Could not update OTP verification status in DB:', err.message)
+  }
+
   response.json({
     message: 'Email verified successfully.',
     verified: true,
   })
-})
+}
+
+router.post(['/send-otp', '/sendOtp', '/send'], sendOtpHandler)
+router.post(['/verify-otp', '/verifyOtp', '/verify'], verifyOtpHandler)
 
 // POST /api/auth/register - Register a new patient
 router.post('/register', async (request, response) => {
@@ -127,35 +174,45 @@ router.post('/register', async (request, response) => {
     return response.status(400).json({ message: 'Full name, email, mobile number, and password are required.' })
   }
 
-  // Emergency contact is required
   if (!emergencyContact || !emergencyContact.trim()) {
     return response.status(400).json({ message: 'Emergency contact / Next of Kin details are required.' })
   }
 
-  // Strong password validation
   const passwordError = validateStrongPassword(password)
   if (passwordError) {
     return response.status(400).json({ message: passwordError })
   }
 
-  // Phone validation: accepts only numbers and exactly 10 digits
   const rawPhone = String(phone).trim()
   if (!/^\d{10}$/.test(rawPhone)) {
     return response.status(400).json({ message: 'Mobile number must be valid: exactly 10 numeric digits only.' })
   }
   const cleanPhone = rawPhone
 
-  // Basic email regex format validation
   const cleanEmail = email.toLowerCase().trim()
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   if (!emailRegex.test(cleanEmail)) {
     return response.status(400).json({ message: 'Please provide a valid email address.' })
   }
 
-  // Check email OTP verification if OTP was generated
-  const otpEntry = otpStore.get(cleanEmail)
-  if (otpEntry && !otpEntry.verified) {
-    return response.status(400).json({ message: 'Please verify your email address using the 6-digit OTP code before submitting.' })
+  // Check email OTP verification
+  let isVerified = false
+  const memEntry = otpStore.get(cleanEmail)
+  if (memEntry && memEntry.verified) {
+    isVerified = true
+  } else {
+    try {
+      const dbEntry = await EmailOtp.findOne({ email: cleanEmail })
+      if (dbEntry && dbEntry.verified) {
+        isVerified = true
+      }
+    } catch {}
+  }
+
+  if (!isVerified) {
+    return response.status(400).json({
+      message: 'Please verify your email address using the 6-digit OTP code before proceeding.',
+    })
   }
 
   try {

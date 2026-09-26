@@ -9,7 +9,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const distPath = path.join(__dirname, '../dist')
 
-import authRoutes from './routes/auth.js'
+import authRoutes, { sendOtpHandler, verifyOtpHandler } from './routes/auth.js'
 import departmentRoutes from './routes/departments.js'
 import doctorRoutes from './routes/doctors.js'
 import scheduleRoutes from './routes/schedules.js'
@@ -57,8 +57,38 @@ app.get('/api/health', (_request, response) => {
   })
 })
 
+// Direct root and API aliases for OTP to ensure zero 404s under any URL pattern
+const otpSendPaths = [
+  '/api/auth/send-otp',
+  '/api/auth/sendOtp',
+  '/api/send-otp',
+  '/api/sendOtp',
+  '/auth/send-otp',
+  '/auth/sendOtp',
+  '/send-otp',
+  '/sendOtp',
+]
+const otpVerifyPaths = [
+  '/api/auth/verify-otp',
+  '/api/auth/verifyOtp',
+  '/api/verify-otp',
+  '/api/verifyOtp',
+  '/auth/verify-otp',
+  '/auth/verifyOtp',
+  '/verify-otp',
+  '/verifyOtp',
+]
+
+for (const p of otpSendPaths) {
+  app.post(p, sendOtpHandler)
+}
+for (const p of otpVerifyPaths) {
+  app.post(p, verifyOtpHandler)
+}
+
 // Application routes
 app.use('/api/auth', authRoutes)
+app.use('/auth', authRoutes)
 app.use('/api/departments', departmentRoutes)
 app.use('/api/doctors', doctorRoutes)
 app.use('/api/schedules', scheduleRoutes)
@@ -74,19 +104,18 @@ app.use('/api/doctor-queue', doctorQueueRoutes)
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath))
   app.use((request, response, next) => {
-    if (request.path.startsWith('/api')) {
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      return next()
+    }
+    if (request.path.startsWith('/api') || request.path.startsWith('/auth')) {
       return next()
     }
     response.sendFile(path.join(distPath, 'index.html'))
   })
 }
 
-app.use('/api', (_request, response) => {
-  response.status(404).json({ message: 'Requested API endpoint not found.' })
-})
-
 app.use((_request, response) => {
-  response.status(404).json({ message: 'Requested route not found.' })
+  response.status(404).json({ message: 'Requested endpoint not found.' })
 })
 
 // Centralized error handler

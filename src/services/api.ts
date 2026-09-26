@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+const rawApiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').trim().replace(/\/+$/, '')
+const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`
 
 export interface User {
   id: string
@@ -533,17 +534,39 @@ export const api = {
     }),
 
   // OTP Email Verification
-  sendOtp: (email: string) =>
-    request<{ message: string; simulatedOtp?: string }>('/auth/send-otp', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }),
+  sendOtp: async (email: string) => {
+    try {
+      return await request<{ message: string; simulatedOtp?: string; otp?: string; code?: string }>('/auth/send-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      })
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('not found')) {
+        return await request<{ message: string; simulatedOtp?: string; otp?: string; code?: string }>('/send-otp', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        })
+      }
+      throw err
+    }
+  },
 
-  verifyOtp: (email: string, otp: string) =>
-    request<{ message: string; verified: boolean }>('/auth/verify-otp', {
-      method: 'POST',
-      body: JSON.stringify({ email, otp }),
-    }),
+  verifyOtp: async (email: string, otp: string) => {
+    try {
+      return await request<{ message: string; verified: boolean }>('/auth/verify-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email, otp }),
+      })
+    } catch (err: any) {
+      if (err.message && err.message.toLowerCase().includes('not found')) {
+        return await request<{ message: string; verified: boolean }>('/verify-otp', {
+          method: 'POST',
+          body: JSON.stringify({ email, otp }),
+        })
+      }
+      throw err
+    }
+  },
 
   // Cloudinary Image Upload
   uploadReportImage: (image: string, folder?: string) =>

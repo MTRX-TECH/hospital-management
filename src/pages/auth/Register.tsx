@@ -26,6 +26,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
 
   const [otpSent, setOtpSent] = useState(false)
   const [otpInput, setOtpInput] = useState('')
+  const [generatedOtp, setGeneratedOtp] = useState('')
   const [isEmailVerified, setIsEmailVerified] = useState(false)
   const [sendingOtp, setSendingOtp] = useState(false)
   const [verifyingOtp, setVerifyingOtp] = useState(false)
@@ -51,6 +52,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
       setIsEmailVerified(false)
       setOtpSent(false)
       setOtpInput('')
+      setGeneratedOtp('')
       setOtpNotice('')
       setForm((prev) => ({ ...prev, email: value }))
       return
@@ -63,18 +65,21 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
     setError('')
     setOtpNotice('')
 
-    if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    const cleanEmail = form.email.trim()
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
       setError('Please enter a valid email address before requesting an OTP code.')
       return
     }
 
     setSendingOtp(true)
     try {
-      const res = await api.sendOtp(form.email.trim())
+      const res = await api.sendOtp(cleanEmail)
       setOtpSent(true)
-      if (res.simulatedOtp) {
+      const code = res.simulatedOtp || (res as any).otp || (res as any).code || ''
+      if (code) {
+        setGeneratedOtp(code)
         setOtpNotice(
-          `Security Verification Code: Your 6-digit email OTP is [ ${res.simulatedOtp} ]. Enter this code below to verify your email.`
+          `Security Verification Code: Your 6-digit email OTP is [ ${code} ]. Enter this code below to verify your email.`
         )
       }
     } catch (err: any) {
@@ -84,18 +89,20 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
     }
   }
 
-  async function handleVerifyOtp() {
+  async function handleVerifyOtp(codeToVerify?: string) {
     setError('')
-    if (otpInput.trim().length !== 6) {
+    const code = (typeof codeToVerify === 'string' ? codeToVerify : otpInput).trim()
+    if (code.length !== 6) {
       setError('Please enter the complete 6-digit OTP code.')
       return
     }
 
     setVerifyingOtp(true)
     try {
-      await api.verifyOtp(form.email.trim(), otpInput.trim())
+      await api.verifyOtp(form.email.trim(), code)
       setIsEmailVerified(true)
       setOtpNotice('')
+      setError('')
     } catch (err: any) {
       setError(err.message || 'Verification failed. Incorrect OTP code entered.')
     } finally {
@@ -222,13 +229,29 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                   name="email"
                   type="email"
                   required
+                  disabled={isEmailVerified}
                   placeholder="e.g. rohan.sharma@example.com"
                   value={form.email}
                   onChange={handleFieldChange}
                   className="form-input"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, backgroundColor: isEmailVerified ? '#f8fafc' : '#ffffff' }}
                 />
-                {!isEmailVerified && (
+                {isEmailVerified ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsEmailVerified(false)
+                      setOtpSent(false)
+                      setOtpInput('')
+                      setGeneratedOtp('')
+                      setOtpNotice('')
+                    }}
+                    className="btn-secondary"
+                    style={{ padding: '8px 12px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
+                  >
+                    Change Email
+                  </button>
+                ) : (
                   <button
                     type="button"
                     onClick={handleSendOtp}
@@ -240,6 +263,26 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                   </button>
                 )}
               </div>
+
+              {isEmailVerified && (
+                <div
+                  style={{
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    marginTop: '8px',
+                    color: '#166534',
+                    fontSize: '0.82rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <CheckCircleIcon size={14} color="#16a34a" />
+                  <span>Email address verified successfully.</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -250,10 +293,55 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                 backgroundColor: '#f8fafc',
                 border: '1px solid #cbd5e1',
                 borderRadius: '8px',
-                padding: '12px 16px',
+                padding: '14px 16px',
                 marginBottom: '16px',
               }}
             >
+              {generatedOtp && (
+                <div
+                  style={{
+                    backgroundColor: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '6px',
+                    padding: '10px 14px',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '0.78rem', color: '#1e40af', fontWeight: 600 }}>
+                      Security Verification Code:
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1d4ed8', letterSpacing: '0.18em' }}>
+                      {generatedOtp}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpInput(generatedOtp)
+                      handleVerifyOtp(generatedOtp)
+                    }}
+                    style={{
+                      padding: '7px 14px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Auto-Fill &amp; Verify
+                  </button>
+                </div>
+              )}
+
               <label htmlFor="reg-otp" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '6px' }}>
                 Enter 6-Digit Email Verification Code *
               </label>
@@ -263,15 +351,27 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                   type="text"
                   inputMode="numeric"
                   maxLength={6}
-                  placeholder="Enter 6-digit code (e.g. 582910)"
+                  placeholder="e.g. 582910"
                   value={otpInput}
-                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleVerifyOtp()
+                    }
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                    setOtpInput(val)
+                    if (val.length === 6 && generatedOtp && val === generatedOtp) {
+                      handleVerifyOtp(val)
+                    }
+                  }}
                   className="form-input"
-                  style={{ maxWidth: '240px', letterSpacing: '0.15em', fontWeight: 700 }}
+                  style={{ maxWidth: '220px', letterSpacing: '0.15em', fontWeight: 700 }}
                 />
                 <button
                   type="button"
-                  onClick={handleVerifyOtp}
+                  onClick={() => handleVerifyOtp()}
                   disabled={verifyingOtp || otpInput.length !== 6}
                   className="btn-primary"
                   style={{ padding: '8px 16px', fontSize: '0.85rem' }}
