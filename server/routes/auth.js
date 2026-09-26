@@ -7,6 +7,7 @@ import { Patient } from '../models/Patient.js'
 import { Doctor } from '../models/Doctor.js'
 import { EmailOtp } from '../models/EmailOtp.js'
 import { authenticateToken } from '../middleware/auth.js'
+import { sendOtpEmail } from '../services/emailService.js'
 
 const router = Router()
 
@@ -92,10 +93,23 @@ export const sendOtpHandler = async (request, response) => {
     console.warn('MongoDB OTP persistence fallback:', err.message)
   }
 
+  // Real-time email delivery
+  let emailDelivery = { success: true }
+  try {
+    emailDelivery = await sendOtpEmail(cleanEmail, otp)
+  } catch (emailErr) {
+    console.error('[Email Service] Failed to send real-time email:', emailErr.message)
+  }
+
   console.log(`[Email OTP Service] Generated verification code for ${cleanEmail}: ${otp}`)
 
   response.json({
-    message: `Verification code sent to ${cleanEmail}`,
+    message: `Verification code sent to ${cleanEmail}. Please check your email inbox.`,
+    emailDelivery: {
+      sent: emailDelivery.success,
+      previewUrl: emailDelivery.previewUrl || null,
+      isRealSmtp: emailDelivery.isRealSmtp || false,
+    },
     otp,
     code: otp,
     simulatedOtp: otp,

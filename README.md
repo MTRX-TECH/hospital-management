@@ -342,6 +342,8 @@ Deploy the frontend on **Vercel** and backend API on **Render.com** (or Railway)
    - `MONGODB_URI`: `<Your MongoDB Atlas Connection String>`
    - `JWT_SECRET`: `aarogya_hospital_secure_jwt_token_key_2026`
    - `CLIENT_URL`: `*` *(or your Vercel frontend URL once deployed)*
+   - `EMAIL_USER`: *(Optional)* `your_email@gmail.com` *(for real-time live inbox delivery)*
+   - `EMAIL_PASS`: *(Optional)* `your_16_digit_app_password` *(if omitted, uses built-in live sandbox preview)*
 5. Click **Create Web Service**. Note your Render API URL (e.g., `https://aarogya-hospital-api.onrender.com`).
 
 *(Optional Seed: In the Render Shell tab, run `npm run seed` to populate initial doctors, departments, and schedules into MongoDB Atlas).*

@@ -536,13 +536,35 @@ export const api = {
   // OTP Email Verification
   sendOtp: async (email: string) => {
     try {
-      return await request<{ message: string; simulatedOtp?: string; otp?: string; code?: string }>('/auth/send-otp', {
+      return await request<{
+        message: string
+        emailDelivery?: {
+          sent: boolean
+          previewUrl?: string | null
+          isRealSmtp?: boolean
+        }
+        simulatedOtp?: string
+        otp?: string
+        code?: string
+        success?: boolean
+      }>('/auth/send-otp', {
         method: 'POST',
         body: JSON.stringify({ email }),
       })
     } catch (err: any) {
       if (err.message && err.message.toLowerCase().includes('not found')) {
-        return await request<{ message: string; simulatedOtp?: string; otp?: string; code?: string }>('/send-otp', {
+        return await request<{
+          message: string
+          emailDelivery?: {
+            sent: boolean
+            previewUrl?: string | null
+            isRealSmtp?: boolean
+          }
+          simulatedOtp?: string
+          otp?: string
+          code?: string
+          success?: boolean
+        }>('/send-otp', {
           method: 'POST',
           body: JSON.stringify({ email }),
         })

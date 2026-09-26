@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
-import { HospitalCrossIcon, CheckCircleIcon, CheckIcon, CrossIcon } from '../../components/Icons'
+import { HospitalCrossIcon, CheckCircleIcon, CheckIcon, CrossIcon, MailIcon, ExternalLinkIcon } from '../../components/Icons'
 import { api } from '../../services/api'
 
 interface RegisterProps {
@@ -26,11 +26,11 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
 
   const [otpSent, setOtpSent] = useState(false)
   const [otpInput, setOtpInput] = useState('')
-  const [generatedOtp, setGeneratedOtp] = useState('')
+  const [emailPreviewUrl, setEmailPreviewUrl] = useState<string | null>(null)
+  const [isRealSmtp, setIsRealSmtp] = useState(false)
   const [isEmailVerified, setIsEmailVerified] = useState(false)
   const [sendingOtp, setSendingOtp] = useState(false)
   const [verifyingOtp, setVerifyingOtp] = useState(false)
-  const [otpNotice, setOtpNotice] = useState('')
 
   const hasMinLength = form.password.length >= 6
   const hasUpper = /[A-Z]/.test(form.password)
@@ -52,8 +52,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
       setIsEmailVerified(false)
       setOtpSent(false)
       setOtpInput('')
-      setGeneratedOtp('')
-      setOtpNotice('')
+      setEmailPreviewUrl(null)
+      setIsRealSmtp(false)
       setForm((prev) => ({ ...prev, email: value }))
       return
     }
@@ -63,7 +63,6 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
 
   async function handleSendOtp() {
     setError('')
-    setOtpNotice('')
 
     const cleanEmail = form.email.trim()
     if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
@@ -75,15 +74,10 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
     try {
       const res = await api.sendOtp(cleanEmail)
       setOtpSent(true)
-      const code = res.simulatedOtp || (res as any).otp || (res as any).code || ''
-      if (code) {
-        setGeneratedOtp(code)
-        setOtpNotice(
-          `Security Verification Code: Your 6-digit email OTP is [ ${code} ]. Enter this code below to verify your email.`
-        )
-      }
+      setEmailPreviewUrl(res.emailDelivery?.previewUrl || null)
+      setIsRealSmtp(Boolean(res.emailDelivery?.isRealSmtp))
     } catch (err: any) {
-      setError(err.message || 'Failed to generate verification OTP. Please try again.')
+      setError(err.message || 'Failed to dispatch verification OTP. Please try again.')
     } finally {
       setSendingOtp(false)
     }
@@ -93,7 +87,7 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
     setError('')
     const code = (typeof codeToVerify === 'string' ? codeToVerify : otpInput).trim()
     if (code.length !== 6) {
-      setError('Please enter the complete 6-digit OTP code.')
+      setError('Please enter the complete 6-digit OTP code received in your email.')
       return
     }
 
@@ -101,7 +95,6 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
     try {
       await api.verifyOtp(form.email.trim(), code)
       setIsEmailVerified(true)
-      setOtpNotice('')
       setError('')
     } catch (err: any) {
       setError(err.message || 'Verification failed. Incorrect OTP code entered.')
@@ -178,23 +171,6 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="form-alert-error">{error}</div>}
 
-          {otpNotice && (
-            <div
-              style={{
-                backgroundColor: '#eff6ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: '8px',
-                padding: '12px 16px',
-                marginBottom: '16px',
-                color: '#1e40af',
-                fontSize: '0.88rem',
-                lineHeight: 1.5,
-              }}
-            >
-              <strong>Security Code Notice:</strong> {otpNotice}
-            </div>
-          )}
-
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="reg-name">Full Name *</label>
@@ -243,8 +219,8 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                       setIsEmailVerified(false)
                       setOtpSent(false)
                       setOtpInput('')
-                      setGeneratedOtp('')
-                      setOtpNotice('')
+                      setEmailPreviewUrl(null)
+                      setIsRealSmtp(false)
                     }}
                     className="btn-secondary"
                     style={{ padding: '8px 12px', fontSize: '0.82rem', whiteSpace: 'nowrap' }}
@@ -286,61 +262,70 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
             </div>
           </div>
 
-          {/* OTP Input Row when OTP is requested */}
+          {/* Real-Time Email OTP Verification Section */}
           {otpSent && !isEmailVerified && (
             <div
               style={{
                 backgroundColor: '#f8fafc',
                 border: '1px solid #cbd5e1',
                 borderRadius: '8px',
-                padding: '14px 16px',
+                padding: '16px',
                 marginBottom: '16px',
               }}
             >
-              {generatedOtp && (
-                <div
-                  style={{
-                    backgroundColor: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    borderRadius: '6px',
-                    padding: '10px 14px',
-                    marginBottom: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '0.78rem', color: '#1e40af', fontWeight: 600 }}>
-                      Security Verification Code:
-                    </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1d4ed8', letterSpacing: '0.18em' }}>
-                      {generatedOtp}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOtpInput(generatedOtp)
-                      handleVerifyOtp(generatedOtp)
-                    }}
-                    style={{
-                      padding: '7px 14px',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      backgroundColor: '#2563eb',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Auto-Fill &amp; Verify
-                  </button>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '6px',
+                  padding: '12px 14px',
+                  marginBottom: '14px',
+                }}
+              >
+                <div style={{ marginTop: '2px' }}>
+                  <MailIcon size={20} color="#2563eb" />
                 </div>
-              )}
+                <div style={{ flex: 1, fontSize: '0.84rem', color: '#1e3a8a', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 700, marginBottom: '2px', color: '#1e40af' }}>
+                    Real-Time Verification Code Dispatched
+                  </div>
+                  <div>
+                    A 6-digit one-time password has been sent to{' '}
+                    <strong>{form.email}</strong>. Please check your inbox and enter the code below to complete registration. Code expires in 10 minutes.
+                  </div>
+                  {emailPreviewUrl && (
+                    <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed #bfdbfe' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                        Live Email Sandbox (Preview):{' '}
+                      </span>
+                      <a
+                        href={emailPreviewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          color: '#2563eb',
+                          fontWeight: 700,
+                          fontSize: '0.82rem',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        View Dispatched Email in Live Inbox <ExternalLinkIcon size={13} color="#2563eb" />
+                      </a>
+                    </div>
+                  )}
+                  {isRealSmtp && (
+                    <div style={{ marginTop: '6px', fontSize: '0.8rem', color: '#047857', fontWeight: 600 }}>
+                      Dispatched via Hospital SMTP Mail Server.
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <label htmlFor="reg-otp" style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', display: 'block', marginBottom: '6px' }}>
                 Enter 6-Digit Email Verification Code *
@@ -362,9 +347,6 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                   onChange={(e) => {
                     const val = e.target.value.replace(/\D/g, '').slice(0, 6)
                     setOtpInput(val)
-                    if (val.length === 6 && generatedOtp && val === generatedOtp) {
-                      handleVerifyOtp(val)
-                    }
                   }}
                   className="form-input"
                   style={{ maxWidth: '220px', letterSpacing: '0.15em', fontWeight: 700 }}
@@ -378,6 +360,9 @@ export const Register: React.FC<RegisterProps> = ({ onSwitchToLogin }) => {
                 >
                   {verifyingOtp ? 'Verifying...' : 'Verify OTP'}
                 </button>
+              </div>
+              <div style={{ marginTop: '8px', fontSize: '0.78rem', color: '#64748b' }}>
+                Didn't receive the email? Check your junk/spam folder or click "Resend OTP" above.
               </div>
             </div>
           )}
